@@ -9,6 +9,8 @@ INSTALLATION:
 3. ADD './plugins/VehicleSearchSystem/items.json' to the "files { "" } section
 3. OPTIONAL You can edit the items.json to add items. I would give "Nothing" in there to give you a chance of finding "Nothing"
 
+## PLEASE ENSURE THERE ISN'T ANOTHER NEWTONSOFT.JSON BEEN LOADED IN YOUR PLUGINS OR CALLOUTS FOLDERS. THIS CAN CAUSE THE PLUGIN TO NOT WORK/LOAD ##
+
 For any suggestions or issues you can DM me on Discord.
 
 Tested on multiple vehicles, sedans, couples, trucks etc.
