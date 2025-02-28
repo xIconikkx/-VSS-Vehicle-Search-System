@@ -219,21 +219,13 @@ namespace FivePDSearchSystem
 
         private void ShowSearchResults()
         {
-            Debug.WriteLine("Check1");
             if (itemList.Count == 0) return;
-Debug.WriteLine("Check2");
             Random rand = new Random();
-            Debug.WriteLine("Check3");
             int itemCount = rand.Next(1, 4);
-            Debug.WriteLine("Check4");
             List<string> foundItems = new List<string>();
-            Debug.WriteLine("[VSS] Found items: " + itemCount);
-            Debug.WriteLine(itemList.ToString());
             for (int i = 0; i < itemCount; i++)
             {
                 string itemToAdd = itemList[rand.Next(1, itemList.Count - 1)].ToString();
-                if (itemToAdd is null)
-                    Debug.WriteLine("[VSS - ERROR] Item is null!");
 
                 if (foundItems.Contains(itemToAdd))
                 {
@@ -252,7 +244,6 @@ Debug.WriteLine("Check2");
                 }
 
                 foundItems.Add(itemToAdd);
-                Debug.WriteLine($"[VSS] Found item: {itemToAdd}");
             }
 
             string result = $"You found: {string.Join(", ", foundItems)}";
