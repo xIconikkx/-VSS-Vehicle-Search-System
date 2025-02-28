@@ -1,9 +1,11 @@
-﻿using CitizenFX.Core;
+﻿#nullable enable
+using CitizenFX.Core;
 using CitizenFX.Core.Native;
 using FivePD.API.Utils;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Kilo.Commons.Config;
 using Newtonsoft.Json.Linq;
@@ -275,32 +277,23 @@ namespace FivePDSearchSystem
             try
             {
                 config = new Config(AddonType.plugins, defaultConfig.ToString(), "VehicleSearchSystem", "items.json", "fivepd");
-
-                if (config != null)
+                if (config is null)
+                    throw new NullReferenceException("[VSS] No Json File?");
+                
+                if (config.TryGetValue("items", out JToken? list))
                 {
-                    if (config.ContainsKey("items"))
-                    {
-                        // Convert the "items" property to a List<string>
-                        itemList = config["items"].ToObject<List<string>>();
-
-                        // Print the items
-                        Debug.WriteLine("[VSS] Loaded items!");
-                    }
-                    else
-                    {
-                        Debug.WriteLine("[VSS - ERROR] 'items' key not found in the JSON. JSON File might be broke!");
-                    }
+                    var items = ((JArray)list).ToList();
+                    Debug.WriteLine("[VSS] Loaded items!");
                 }
                 else
                 {
-                    Debug.WriteLine("[VSS] No Json File?");
+                    Debug.WriteLine("[VSS - ERROR] 'items' key not found in the JSON. JSON File might be broke!");
                 }
             }
             catch (Exception ex)
             {
-                Debug.Write("[VSS - ERROR] " + ex.ToString());
+                Debug.WriteLine($"[VSS - ERROR] {ex}");
             }
-            
         }
 
         private JObject defaultConfig = new JObject()
