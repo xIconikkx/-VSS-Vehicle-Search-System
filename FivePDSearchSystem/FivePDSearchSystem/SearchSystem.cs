@@ -1,9 +1,11 @@
-﻿using CitizenFX.Core;
+﻿#nullable enable
+using CitizenFX.Core;
 using CitizenFX.Core.Native;
 using FivePD.API.Utils;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Kilo.Commons.Config;
 using Newtonsoft.Json.Linq;
@@ -33,8 +35,10 @@ namespace FivePDSearchSystem
         {
             //60 seconds
             await Delay(60000);
-            for (int i = 0; i < searchedDoorsClass.Count; i++)
+            for (int i = 0; i < searchedDoorsClass.Count - 1; i++)
             {
+                if (searchedDoorsClass[i] is null)
+                    continue;
                 if (!searchedDoorsClass[i].vehicleObj.Exists())
                 {
                     searchedDoorsClass.Remove(searchedDoorsClass[i]);
@@ -46,127 +50,117 @@ namespace FivePDSearchSystem
 
                     float distance = pedPos.DistanceTo(searchedDoorsClass[i].vehicleObj.Position);
 
-                    if(distance > 100)
+                    if (distance > 100)
                     {
                         searchedDoorsClass.Remove(searchedDoorsClass[i]);
                     }
                 }
-            }
 
-            await Task.FromResult(0);
+                await Delay(100);
+            }
+        }
+
+        bool searching = false;
+
+        private async Task<KeyValuePair<bool, VehicleDoor>> HandleSearchVehicle(Vehicle vehicle)
+        {
+            if (searching) throw new Exception("Already searching!");
+            searching = true;
+            Vector3 pedPos = Game.PlayerPed.Position;
+
+            var closestDoor = Enum.GetValues(typeof(VehicleDoorIndex))
+                .Cast<VehicleDoorIndex>()
+                .Select(doorIndex => new
+                {
+                    Door = doorIndex,
+                    Distance = pedPos.DistanceTo(GetDoorPosition(vehicle, doorIndex))
+                })
+                .Where(door => door.Distance < 2f)
+                .OrderBy(door => door.Distance)
+                .FirstOrDefault()?.Door ?? VehicleDoorIndex.FrontLeftDoor;
+
+            bool isOpen = vehicle.Doors[closestDoor].IsOpen;
+
+            if (searchedDoorsClass.Count > 0)
+            {
+                if (!SearchVehicleSearchedClass(closestDoor.ToString(), vehicle))
+                {
+                    if (API.IsControlJustPressed(0, 38))
+                    {
+                        if (isOpen)
+                        {
+                            AddSearchedVehicle(closestDoor.ToString(), vehicle);
+
+                            _ = SearchVehicle(Game.PlayerPed, vehicle, (VehicleDoorIndex)closestDoor);
+                        }
+                        else
+                        {
+                            ToggleDoor(vehicle, closestDoor);
+                            isOpen = true;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                if (API.IsControlJustPressed(0, 38))
+                {
+                    if (isOpen)
+                    {
+                        await SearchVehicle(Game.PlayerPed, vehicle, (VehicleDoorIndex)closestDoor);
+
+                        AddSearchedVehicle(closestDoor.ToString(), vehicle);
+                    }
+                    else
+                    {
+                        ToggleDoor(vehicle, (VehicleDoorIndex)closestDoor);
+                        isOpen = true;
+                    }
+                }
+            }
+            searching = false;
+            return new KeyValuePair<bool, VehicleDoor>(isOpen, vehicle.Doors[closestDoor]);
         }
 
         private async Task OnTick()
         {
             try
             {
-                if (!Game.PlayerPed.IsInVehicle())
+                if (!Game.PlayerPed.IsInVehicle() && !searching)
                 {
-                    Ped playerPed = Game.PlayerPed;
+                    Vehicle? vehicle = GetClosestVehicle(Game.PlayerPed.Position, 5f);
+                    if (vehicle is null || !vehicle.Exists()) return;
 
-                    if (playerPed == null || !playerPed.Exists()) return;
-
-                    Vehicle vehicle = GetClosestVehicle(playerPed.Position, 5f);
-
-                    if (vehicle != null && vehicle.Exists())
-                    {
-                        Vector3 pedPos = playerPed.Position;
-                        float closestDistance = float.MaxValue;
-                        VehicleDoorIndex closestDoor = VehicleDoorIndex.FrontLeftDoor;
-                        Vector3 closestDoorPos = Vector3.Zero;
-
-                        // Loop through standard doors (indexes 0-3)
-                        foreach (VehicleDoorIndex doorIndex in Enum.GetValues(typeof(VehicleDoorIndex)))
-                        {
-                            Vector3 doorPos = GetDoorPosition(vehicle, doorIndex);
-
-                            float distance = pedPos.DistanceTo(doorPos);
-
-                            if (distance < closestDistance && distance < 2f)
-                            {
-                                closestDistance = distance;
-                                closestDoor = doorIndex;
-                                closestDoorPos = doorPos;
-                            }
-                        }
-
-
-                        if (closestDistance < 2f)
-                        {
-                            if (searchedDoorsClass.Count > 0)
-                            {
-                                if (!SearchVehicleSearchedClass(closestDoor.ToString(), vehicle))
-                                {
-                                    bool isOpen = API.GetVehicleDoorAngleRatio(vehicle.Handle, (int)closestDoor) > 0;
-                                    string actionText = isOpen ? "Search" : "Open";
-
-                                    DrawText3D(closestDoorPos.X, closestDoorPos.Y, closestDoorPos.Z, $"Press [E] to {actionText}", 255, 243, 15);
-
-                                    if (API.IsControlJustPressed(0, 38))
-                                    {
-                                        if (isOpen)
-                                        {
-                                            AddSearchedVehicle(closestDoor.ToString(), vehicle);
-
-                                            await SearchVehicle(playerPed, vehicle, (VehicleDoorIndex)closestDoor);
-                                        }
-                                        else
-                                        {
-                                            ToggleDoor(vehicle, (VehicleDoorIndex)closestDoor);
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    DrawText3D(closestDoorPos.X, closestDoorPos.Y, closestDoorPos.Z, $"SEARCHED", 17, 230, 2);
-                                }
-                            }
-                            else
-                            {
-                                bool isOpen = API.GetVehicleDoorAngleRatio(vehicle.Handle, (int)closestDoor) > 0;
-                                string actionText = isOpen ? "Search" : "Open";
-
-                                DrawText3D(closestDoorPos.X, closestDoorPos.Y, closestDoorPos.Z, $"Press [E] to {actionText}", 255, 243, 15);
-
-                                if (API.IsControlJustPressed(0, 38))
-                                {
-                                    if (isOpen)
-                                    {
-                                        await SearchVehicle(playerPed, vehicle, (VehicleDoorIndex)closestDoor);
-
-                                        AddSearchedVehicle(closestDoor.ToString(), vehicle);
-                                    }
-                                    else
-                                    {
-                                        ToggleDoor(vehicle, (VehicleDoorIndex)closestDoor);
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    var handleSearchVehicleData = await HandleSearchVehicle(vehicle);
+                    var isOpen = handleSearchVehicleData.Key;
+                    var door = handleSearchVehicleData.Value;
+                    var closestDoorPos = GetDoorPosition(vehicle, door.Index);
+                    string actionText = isOpen ? "Search" : "Open";
+                    if (SearchVehicleSearchedClass(door.Index.ToString(), vehicle))
+                        DrawText3D(closestDoorPos.X, closestDoorPos.Y, closestDoorPos.Z, $"SEARCHED", 17, 230, 2);
+                    else
+                        DrawText3D(closestDoorPos.X, closestDoorPos.Y, closestDoorPos.Z, $"Press [E] to {actionText}", 255, 243, 15);
                 }
             }
             catch (Exception ex)
             {
-                Debug.Write("[VSS - ERROR] " + ex.ToString());
+                searching = false;
+                if (ex.Message != "Already searching!")
+                    Debug.Write("[VSS - ERROR] " + ex.ToString());
             }
-
-            await Task.FromResult(0);
         }
 
-        private Vehicle GetClosestVehicle(Vector3 position, float radius)
-        {
-            int handle = API.GetClosestVehicle(position.X, position.Y, position.Z, radius, 0, 70);
-            return handle != 0 ? new Vehicle(handle) : null;
-        }
+        private Vehicle? GetClosestVehicle(Vector3 position, float radius) =>
+            new(API.GetClosestVehicle(position.X, position.Y, position.Z, radius, 0, 70));
 
-        private Vector3 GetDoorPosition(Vehicle vehicle, VehicleDoorIndex doorIndex)
+        private Vector3 GetDoorPosition(Vehicle? vehicle, VehicleDoorIndex doorIndex)
         {
             if (doorIndex == VehicleDoorIndex.Hood || doorIndex == VehicleDoorIndex.Trunk)
             {
                 // Get bone positions for hood and trunk
-                int boneIndex = (doorIndex == VehicleDoorIndex.Hood) ? API.GetEntityBoneIndexByName(vehicle.Handle, "bonnet")
-                                                                     : API.GetEntityBoneIndexByName(vehicle.Handle, "boot");
+                int boneIndex = (doorIndex == VehicleDoorIndex.Hood)
+                    ? API.GetEntityBoneIndexByName(vehicle.Handle, "bonnet")
+                    : API.GetEntityBoneIndexByName(vehicle.Handle, "boot");
                 return API.GetWorldPositionOfEntityBone(vehicle.Handle, boneIndex);
             }
             else
@@ -176,7 +170,7 @@ namespace FivePDSearchSystem
             }
         }
 
-        private void ToggleDoor(Vehicle vehicle, VehicleDoorIndex doorIndex)
+        private void ToggleDoor(Vehicle? vehicle, VehicleDoorIndex doorIndex)
         {
             int door = (int)doorIndex;
             bool isOpen = API.GetVehicleDoorAngleRatio(vehicle.Handle, door) > 0;
@@ -191,7 +185,16 @@ namespace FivePDSearchSystem
             }
         }
 
-        private async Task SearchVehicle(Ped playerPed, Vehicle vehicle, VehicleDoorIndex doorIndex)
+        private async void RunAsync(Task task, Func<bool> predicate, int timeout = 100)
+        {
+            while (predicate())
+            {
+                task.Start();
+                await Delay(timeout);
+            }
+        }
+
+        private async Task SearchVehicle(Ped playerPed, Vehicle? vehicle, VehicleDoorIndex doorIndex)
         {
             string animDict = "amb@prop_human_bum_bin@base";
             string animName = "base";
@@ -217,43 +220,36 @@ namespace FivePDSearchSystem
         private void ShowSearchResults()
         {
             if (itemList.Count == 0) return;
-
             Random rand = new Random();
             int itemCount = rand.Next(1, 4);
             List<string> foundItems = new List<string>();
-
             for (int i = 0; i < itemCount; i++)
             {
-                string itemToAdd = itemList[rand.Next(1, itemList.Count)].ToString();
-
+                string itemToAdd = itemList[rand.Next(1, itemList.Count - 1)].ToString();
 
                 if (foundItems.Contains(itemToAdd))
                 {
                     i -= 1;
                     return;
                 }
-                else
-                {
-                    if (i == 0 && itemToAdd == "Nothing")
-                    {
-                        i = 4;
-                    }
-                    else if(i > 0 && itemToAdd == "Nothing")
-                    {
-                        i -= 1;
-                        return;
-                    }
 
-                    foundItems.Add(itemToAdd);
+                if (i == 0 && itemToAdd == "Nothing")
+                {
+                    i = 4;
                 }
+                else if (i > 0 && itemToAdd == "Nothing")
+                {
+                    i -= 1;
+                    return;
+                }
+
+                foundItems.Add(itemToAdd);
             }
 
             string result = $"You found: {string.Join(", ", foundItems)}";
             API.SetNotificationTextEntry("STRING");
             API.AddTextComponentString(result);
             API.DrawNotification(false, false);
-
-            
         }
 
         private void DrawText3D(float x, float y, float z, string text, int r, int g, int b)
@@ -274,33 +270,25 @@ namespace FivePDSearchSystem
         {
             try
             {
-                config = new Config(AddonType.plugins, defaultConfig.ToString(), "VehicleSearchSystem", "items.json", "fivepd");
+                config = new Config(AddonType.plugins, defaultConfig.ToString(), "VehicleSearchSystem", "items.json",
+                    "fivepd");
+                if (config is null)
+                    throw new NullReferenceException("[VSS] No Json File?");
 
-                if (config != null)
+                if (config.TryGetValue("items", out JToken? list))
                 {
-                    if (config.ContainsKey("items"))
-                    {
-                        // Convert the "items" property to a List<string>
-                        itemList = config["items"].ToObject<List<string>>();
-
-                        // Print the items
-                        Debug.WriteLine("[VSS] Loaded items!");
-                    }
-                    else
-                    {
-                        Debug.WriteLine("[VSS - ERROR] 'items' key not found in the JSON. JSON File might be broke!");
-                    }
+                    itemList = list.ToObject<List<string>>() ?? [];
+                    Debug.WriteLine("[VSS] Loaded items!");
                 }
                 else
                 {
-                    Debug.WriteLine("[VSS] No Json File?");
+                    Debug.WriteLine("[VSS - ERROR] 'items' key not found in the JSON. JSON File might be broke!");
                 }
             }
             catch (Exception ex)
             {
-                Debug.Write("[VSS - ERROR] " + ex.ToString());
+                Debug.WriteLine($"[VSS - ERROR] {ex}");
             }
-            
         }
 
         private JObject defaultConfig = new JObject()
@@ -309,33 +297,19 @@ namespace FivePDSearchSystem
         };
         //## End of stuff to do with items.json ##//
 
-        private bool SearchVehicleSearchedClass(string dName, Vehicle veh)
+        private bool SearchVehicleSearchedClass(string dName, Vehicle? veh) =>
+            searchedDoorsClass.Any(item => item.DoorName == dName && item.vehicleObj == veh);
+
+        private void AddSearchedVehicle(string dName, Vehicle? veh) => searchedDoorsClass.Add(new VehicleDoorSearched
         {
-            bool u = false;
-
-            foreach (var item in searchedDoorsClass)
-            {
-                if(item.DoorName == dName && item.vehicleObj == veh)
-                {
-                    u = true;
-                }
-            }
-
-            return u;
-        }
-        private void AddSearchedVehicle(string dName, Vehicle veh)
-        {
-            VehicleDoorSearched i = new VehicleDoorSearched();
-            i.DoorName = dName;
-            i.vehicleObj = veh;
-
-            searchedDoorsClass.Add(i);
-        }
+            DoorName = dName,
+            vehicleObj = veh
+        });
 
         private class VehicleDoorSearched
         {
             public string DoorName;
-            public Vehicle vehicleObj;
+            public Vehicle? vehicleObj;
         }
     }
 }
