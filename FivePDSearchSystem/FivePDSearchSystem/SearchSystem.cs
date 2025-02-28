@@ -37,6 +37,8 @@ namespace FivePDSearchSystem
             await Delay(60000);
             for (int i = 0; i < searchedDoorsClass.Count - 1; i++)
             {
+                if (searchedDoorsClass[i] is null)
+                    continue;
                 if (!searchedDoorsClass[i].vehicleObj.Exists())
                 {
                     searchedDoorsClass.Remove(searchedDoorsClass[i]);
