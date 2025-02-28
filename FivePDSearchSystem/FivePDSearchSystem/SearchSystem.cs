@@ -55,9 +55,9 @@ namespace FivePDSearchSystem
                         searchedDoorsClass.Remove(searchedDoorsClass[i]);
                     }
                 }
-            }
 
-            await Task.FromResult(0);
+                await Delay(100);
+            }
         }
 
         private async Task OnTick()
