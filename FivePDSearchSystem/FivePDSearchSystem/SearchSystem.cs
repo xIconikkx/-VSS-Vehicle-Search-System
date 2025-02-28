@@ -70,7 +70,7 @@ namespace FivePDSearchSystem
 
                     if (playerPed == null || !playerPed.Exists()) return;
 
-                    Vehicle vehicle = GetClosestVehicle(playerPed.Position, 5f);
+                    Vehicle? vehicle = GetClosestVehicle(playerPed.Position, 5f);
 
                     if (vehicle != null && vehicle.Exists())
                     {
@@ -158,13 +158,10 @@ namespace FivePDSearchSystem
             await Task.FromResult(0);
         }
 
-        private Vehicle GetClosestVehicle(Vector3 position, float radius)
-        {
-            int handle = API.GetClosestVehicle(position.X, position.Y, position.Z, radius, 0, 70);
-            return handle != 0 ? new Vehicle(handle) : null;
-        }
+        private Vehicle? GetClosestVehicle(Vector3 position, float radius) =>
+            new(API.GetClosestVehicle(position.X, position.Y, position.Z, radius, 0, 70));
 
-        private Vector3 GetDoorPosition(Vehicle vehicle, VehicleDoorIndex doorIndex)
+        private Vector3 GetDoorPosition(Vehicle? vehicle, VehicleDoorIndex doorIndex)
         {
             if (doorIndex == VehicleDoorIndex.Hood || doorIndex == VehicleDoorIndex.Trunk)
             {
@@ -180,7 +177,7 @@ namespace FivePDSearchSystem
             }
         }
 
-        private void ToggleDoor(Vehicle vehicle, VehicleDoorIndex doorIndex)
+        private void ToggleDoor(Vehicle? vehicle, VehicleDoorIndex doorIndex)
         {
             int door = (int)doorIndex;
             bool isOpen = API.GetVehicleDoorAngleRatio(vehicle.Handle, door) > 0;
@@ -195,7 +192,7 @@ namespace FivePDSearchSystem
             }
         }
 
-        private async Task SearchVehicle(Ped playerPed, Vehicle vehicle, VehicleDoorIndex doorIndex)
+        private async Task SearchVehicle(Ped playerPed, Vehicle? vehicle, VehicleDoorIndex doorIndex)
         {
             string animDict = "amb@prop_human_bum_bin@base";
             string animName = "base";
@@ -304,7 +301,7 @@ namespace FivePDSearchSystem
         };
         //## End of stuff to do with items.json ##//
 
-        private bool SearchVehicleSearchedClass(string dName, Vehicle veh)
+        private bool SearchVehicleSearchedClass(string dName, Vehicle? veh)
         {
             bool u = false;
 
@@ -318,7 +315,7 @@ namespace FivePDSearchSystem
 
             return u;
         }
-        private void AddSearchedVehicle(string dName, Vehicle veh)
+        private void AddSearchedVehicle(string dName, Vehicle? veh)
         {
             VehicleDoorSearched i = new VehicleDoorSearched();
             i.DoorName = dName;
@@ -330,7 +327,7 @@ namespace FivePDSearchSystem
         private class VehicleDoorSearched
         {
             public string DoorName;
-            public Vehicle vehicleObj;
+            public Vehicle? vehicleObj;
         }
     }
 }
