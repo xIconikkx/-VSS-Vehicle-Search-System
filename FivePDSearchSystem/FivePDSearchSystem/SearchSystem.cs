@@ -304,11 +304,11 @@ namespace FivePDSearchSystem
 
         private void LoadConfig()
         {
-            string data = API.LoadResourceFile("fivepd", $"/config/items.json");
+            string data = API.LoadResourceFile("fivepd", $"/config/items.json") ?? "{}";
 
-            loadedconfigitems = JsonConvert.DeserializeObject<List<Item>>(data);
+            loadedconfigitems = JObject.Parse(data).ToObject<List<Item>>() ?? [];
 
-            if(loadedconfigitems == null)
+            if (loadedconfigitems is null)
             {
                 Debug.WriteLine("[VSS] There isn't a items.json in FivePD/Config or its invalid!");
             }
