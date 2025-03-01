@@ -16,3 +16,6 @@ For any suggestions or issues you can DM me on Discord.
 Tested on multiple vehicles, sedans, couples, trucks etc.
 
 * System checks every so often if the vehicle still exists, if it doesn't it will delete it from its memory & if it does exist and your far enough away it removes it from its memory also *)
+
+* Please do not upload/edit the project without permission. Thank you*
+
