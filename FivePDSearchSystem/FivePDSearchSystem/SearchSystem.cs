@@ -7,24 +7,21 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using Kilo.Commons.Config;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
 
-
-//## To Do ##//
-// Cleanup, when player is more than 50m away from any car. Remove results for it.
 
 namespace FivePDSearchSystem
 {
     public class SearchSystem : FivePD.API.Plugin
     {
-        private List<string> itemList;
         private List<VehicleDoorSearched> searchedDoorsClass = new List<VehicleDoorSearched>();
-        private Config config;
+
+        private List<Item> loadedconfigitems = new List<Item>();
 
         internal SearchSystem()
         {
-            Debug.WriteLine("Loaded FivePD Vehicle Search System v1.0.0");
+            Debug.WriteLine("Loaded FivePD Vehicle Search System v1.1.0");
             LoadConfig();
 
             Tick += OnTick;
@@ -129,17 +126,20 @@ namespace FivePDSearchSystem
                 if (!Game.PlayerPed.IsInVehicle() && !searching)
                 {
                     Vehicle? vehicle = GetClosestVehicle(Game.PlayerPed.Position, 5f);
-                    if (vehicle is null || !vehicle.Exists()) return;
+                    if (vehicle is null || !vehicle.Exists() ) return;
 
-                    var handleSearchVehicleData = await HandleSearchVehicle(vehicle);
-                    var isOpen = handleSearchVehicleData.Key;
-                    var door = handleSearchVehicleData.Value;
-                    var closestDoorPos = GetDoorPosition(vehicle, door.Index);
-                    string actionText = isOpen ? "Search" : "Open";
-                    if (SearchVehicleSearchedClass(door.Index.ToString(), vehicle))
-                        DrawText3D(closestDoorPos.X, closestDoorPos.Y, closestDoorPos.Z, $"SEARCHED", 17, 230, 2);
-                    else
-                        DrawText3D(closestDoorPos.X, closestDoorPos.Y, closestDoorPos.Z, $"Press [E] to {actionText}", 255, 243, 15);
+                    if (vehicle.IsStopped && vehicle.IsSeatFree(VehicleSeat.Driver))
+                    {
+                        var handleSearchVehicleData = await HandleSearchVehicle(vehicle);
+                        var isOpen = handleSearchVehicleData.Key;
+                        var door = handleSearchVehicleData.Value;
+                        var closestDoorPos = GetDoorPosition(vehicle, door.Index);
+                        string actionText = isOpen ? "Search" : "Open";
+                        if (SearchVehicleSearchedClass(door.Index.ToString(), vehicle))
+                            DrawText3D(closestDoorPos.X, closestDoorPos.Y, closestDoorPos.Z, $"SEARCHED", 17, 230, 2);
+                        else
+                            DrawText3D(closestDoorPos.X, closestDoorPos.Y, closestDoorPos.Z, $"Press [E] to {actionText}", 255, 243, 15);
+                    }
                 }
             }
             catch (Exception ex)
@@ -219,34 +219,71 @@ namespace FivePDSearchSystem
 
         private void ShowSearchResults()
         {
-            if (itemList.Count == 0) return;
+            //If the config items doesn't have anything in it
+            if (loadedconfigitems.Count == 0) return;
+
+            //Get a random amount of items from 1/4
             Random rand = new Random();
             int itemCount = rand.Next(1, 4);
-            List<string> foundItems = new List<string>();
-            for (int i = 0; i < itemCount; i++)
+
+            //Create a new list of the items we find
+            List<ItemsFound> foundItems = new List<ItemsFound>();
+
+            
+            if(rand.Next(1, 10) <= 7)
             {
-                string itemToAdd = itemList[rand.Next(1, itemList.Count - 1)].ToString();
-
-                if (foundItems.Contains(itemToAdd))
+                //We will find something
+                for (int i = 0; i < itemCount; i++)
                 {
-                    i -= 1;
-                    return;
-                }
+                    Item itemToAdd = loadedconfigitems[rand.Next(0, loadedconfigitems.Count)];
 
-                if (i == 0 && itemToAdd == "Nothing")
-                {
-                    i = 4;
-                }
-                else if (i > 0 && itemToAdd == "Nothing")
-                {
-                    i -= 1;
-                    return;
-                }
+                    ItemsFound itemF = new ItemsFound();
+                    itemF.itemName = itemToAdd.Name;
+                    itemF.isIllegal = itemToAdd.IsIllegal;
 
-                foundItems.Add(itemToAdd);
+                    if (foundItems.Contains(itemF))
+                    {
+                        i -= 1;
+                        return;
+                    }
+
+                    foundItems.Add(itemF);
+                }
             }
 
-            string result = $"You found: {string.Join(", ", foundItems)}";
+            string itemsString = "";
+
+            if(foundItems.Count > 0)
+            {
+                for (int i = 0; i < foundItems.Count; i++)
+                {
+                    if (!foundItems[i].isIllegal)
+                    {
+                        itemsString = itemsString + "~w~" + foundItems[i].itemName;
+
+                        if (i != foundItems.Count - 1)
+                        {
+                            itemsString = itemsString + ", ";
+                        }
+                    }
+                    else if (foundItems[i].isIllegal)
+                    {
+                        itemsString = itemsString + "~r~" + foundItems[i].itemName;
+
+                        if (i != foundItems.Count - 1)
+                        {
+                            itemsString = itemsString + ", ";
+                        }
+                    }
+                }
+            }
+            else
+            {
+                itemsString = "Nothing";
+            }
+            
+
+            string result = $"You found: " + itemsString;
             API.SetNotificationTextEntry("STRING");
             API.AddTextComponentString(result);
             API.DrawNotification(false, false);
@@ -265,37 +302,21 @@ namespace FivePDSearchSystem
             API.ClearDrawOrigin();
         }
 
-        //## Stuff to do with Config loading etc ##//
         private void LoadConfig()
         {
-            try
-            {
-                config = new Config(AddonType.plugins, defaultConfig.ToString(), "VehicleSearchSystem", "items.json",
-                    "fivepd");
-                if (config is null)
-                    throw new NullReferenceException("[VSS] No Json File?");
+            string data = API.LoadResourceFile("fivepd", $"/config/items.json");
 
-                if (config.TryGetValue("items", out JToken? list))
-                {
-                    itemList = list.ToObject<List<string>>() ?? [];
-                    Debug.WriteLine("[VSS] Loaded items!");
-                }
-                else
-                {
-                    Debug.WriteLine("[VSS - ERROR] 'items' key not found in the JSON. JSON File might be broke!");
-                }
-            }
-            catch (Exception ex)
+            loadedconfigitems = JsonConvert.DeserializeObject<List<Item>>(data);
+
+            if(loadedconfigitems == null)
             {
-                Debug.WriteLine($"[VSS - ERROR] {ex}");
+                Debug.WriteLine("[VSS] There isn't a items.json in FivePD/Config or its invalid!");
+            }
+            else
+            {
+                Debug.WriteLine($"[VSS] Total items Loaded { loadedconfigitems.Count } items.");
             }
         }
-
-        private JObject defaultConfig = new JObject()
-        {
-            ["items"] = "Wallet, Phone, Money, Knife"
-        };
-        //## End of stuff to do with items.json ##//
 
         private bool SearchVehicleSearchedClass(string dName, Vehicle? veh) =>
             searchedDoorsClass.Any(item => item.DoorName == dName && item.vehicleObj == veh);
@@ -311,5 +332,20 @@ namespace FivePDSearchSystem
             public string DoorName;
             public Vehicle? vehicleObj;
         }
+
+        private class Item
+        {
+            public string Name { get; set; }
+            public bool IsIllegal { get; set; }
+            public int Multiplier { get; set; }
+            public int ItemLocation { get; set; }
+        }
+
+        private class ItemsFound
+        {
+            public string itemName;
+            public bool isIllegal;
+        }
+
     }
 }
