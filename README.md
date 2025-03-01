@@ -4,9 +4,9 @@ Thank you for downloading [VSS] Vehicle Search System for FivePD!
 
 INSTALLATION:
 
-1. DRAG & DROP "VehicleSearchSystem" into FivePD Plugins Folder (#DO NOT RENAME FOLDER#)
+1. DRAG & DROP "VehicleSearchSystem.net.dll" into FivePD Plugins Folder
 2. OPEN FivePD "Fxmanifest.lua"
-3. ADD './plugins/VehicleSearchSystem/items.json' to the "files { "" } section
+3. ADD './config/items.json' to the files { "" } section
 3. OPTIONAL You can edit the items.json to add items. I would give "Nothing" in there to give you a chance of finding "Nothing"
 
 ## PLEASE ENSURE THERE ISN'T ANOTHER NEWTONSOFT.JSON BEEN LOADED IN YOUR PLUGINS OR CALLOUTS FOLDERS. THIS CAN CAUSE THE PLUGIN TO NOT WORK/LOAD ##
